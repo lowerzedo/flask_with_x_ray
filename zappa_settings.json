@@ -2,12 +2,14 @@
   "dev": {
     "app_function": "app.app",
     "aws_region": "ap-southeast-1",
-    "project_name": "flask_with_x_ray",
+    "project_name": "flask-with-xray",
     "runtime": "python3.10",
     "s3_bucket": "zappa-flask-with-xray-dev",
-    "slim_handler": "true",
+    "slim_handler": true,
     "aws_environment_variables": {
-      "STAGE": "dev"
+      "STAGE": "dev",
+      "ENABLE_X_RAY": "true",
+      "ENABLE_CW_LOGS": "true"
     },
     "endpoint_configuration": ["REGIONAL"],
     "keep_warm": false,
@@ -17,16 +19,19 @@
     "num_retained_versions": 3,
     "tags": {
       "AssetOf": "templates"
-    }
+    },
+    "xray_tracing": true
   },
   "staging": {
     "app_function": "app.app",
     "aws_region": "ap-southeast-1",
-    "project_name": "flask_with_x_ray",
+    "project_name": "flask-with-xray",
     "runtime": "python3.10",
     "s3_bucket": "zappa-flask-with-xray-dev",
     "aws_environment_variables": {
-      "STAGE": "staging"
+      "STAGE": "staging",
+      "ENABLE_X_RAY": "true",
+      "ENABLE_CW_LOGS": "true"
     },
     "tags": {
       "AssetOf": "templates"
@@ -35,24 +40,27 @@
     "keep_warm": false,
     "manage_roles": false,
     "role_name": "basic-lambda",
-    "role_arn": "arn:aws:iam::992382739184:role/basic-lambda"
+    "role_arn": "arn:aws:iam::992382739184:role/basic-lambda",
+    "xray_tracing": true
   },
   "production": {
     "app_function": "app.app",
     "aws_region": "ap-southeast-1",
-    "project_name": "flask_with_x_ray",
+    "project_name": "flask-with-xray",
     "runtime": "python3.10",
     "s3_bucket": "zappa-flask-with-xray",
     "aws_environment_variables": {
-      "STAGE": "production"
+      "STAGE": "production",
+      "ENABLE_X_RAY": "true",
+      "ENABLE_CW_LOGS": "true"
     },
     "tags": {
       "AssetOf": "templates"
     },
-    "keep_warm": true,
     "num_retained_versions": 3,
     "manage_roles": false,
     "role_name": "basic-lambda",
-    "role_arn": "arn:aws:iam::992382739184:role/basic-lambda"
+    "role_arn": "arn:aws:iam::992382739184:role/basic-lambda",
+    "xray_tracing": true
   }
 }
