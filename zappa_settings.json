@@ -1,0 +1,70 @@
+{
+  "dev": {
+    "app_function": "app.app",
+    "aws_region": "ap-southeast-1",
+    "project_name": "flask_with_x_ray",
+    "runtime": "python3.10",
+    "s3_bucket": "zappa-flask-with-xray-dev",
+    "slim_handler": "true",
+    "aws_environment_variables": {
+      "STAGE": "dev"
+    },
+    "endpoint_configuration": ["REGIONAL"],
+    "keep_warm": false,
+    "manage_roles": false,
+    "role_name": "basic-lambda",
+    "role_arn": "arn:aws:iam::992382739184:role/basic-lambda",
+    "num_retained_versions": 3,
+    "tags": {
+      "AssetOf": "templates"
+    },
+    "vpc_config": {
+      "SubnetIds": ["subnet-0ae5a9da8720535f3", "subnet-0b08ba9cd7f1ce52c"],
+      "SecurityGroupIds": ["sg-02f23a41bf56d6e0e - basic-sg"]
+    }
+  },
+  "staging": {
+    "app_function": "app.app",
+    "aws_region": "ap-southeast-1",
+    "project_name": "flask_with_x_ray",
+    "runtime": "python3.10",
+    "s3_bucket": "zappa-flask-with-xray-dev",
+    "aws_environment_variables": {
+      "STAGE": "staging"
+    },
+    "tags": {
+      "AssetOf": "templates"
+    },
+    "endpoint_configuration": ["REGIONAL"],
+    "keep_warm": false,
+    "manage_roles": false,
+    "role_name": "basic-lambda",
+    "role_arn": "arn:aws:iam::992382739184:role/basic-lambda",
+    "vpc_config": {
+      "SubnetIds": ["subnet-0ae5a9da8720535f3", "subnet-0b08ba9cd7f1ce52c"],
+      "SecurityGroupIds": ["sg-02f23a41bf56d6e0e - basic-sg"]
+    }
+  },
+  "production": {
+    "app_function": "app.app",
+    "aws_region": "ap-southeast-1",
+    "project_name": "flask_with_x_ray",
+    "runtime": "python3.10",
+    "s3_bucket": "zappa-flask-with-xray",
+    "aws_environment_variables": {
+      "STAGE": "production"
+    },
+    "tags": {
+      "AssetOf": "templates"
+    },
+    "keep_warm": true,
+    "num_retained_versions": 3,
+    "manage_roles": false,
+    "role_name": "basic-lambda",
+    "role_arn": "arn:aws:iam::992382739184:role/basic-lambda",
+    "vpc_config": {
+      "SubnetIds": ["subnet-0ae5a9da8720535f3", "subnet-0b08ba9cd7f1ce52c"],
+      "SecurityGroupIds": ["sg-02f23a41bf56d6e0e - basic-sg"]
+    }
+  }
+}
