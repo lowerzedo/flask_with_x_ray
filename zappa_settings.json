@@ -64,7 +64,7 @@
     "role_arn": "arn:aws:iam::992382739184:role/basic-lambda",
     "vpc_config": {
       "SubnetIds": ["subnet-0ae5a9da8720535f3", "subnet-0b08ba9cd7f1ce52c"],
-      "SecurityGroupIds": ["sg-02f23a41bf56d6e0e - basic-sg"]
+      "SecurityGroupIds": ["sg-02f23a41bf56d6e0e"]
     }
   }
 }
