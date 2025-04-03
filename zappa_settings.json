@@ -58,6 +58,7 @@
       "AssetOf": "templates"
     },
     "num_retained_versions": 3,
+    "keep_warm": false,
     "manage_roles": false,
     "role_name": "basic-lambda",
     "role_arn": "arn:aws:iam::992382739184:role/basic-lambda",

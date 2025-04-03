@@ -8,14 +8,16 @@ import uuid
 import time
 import random
 import os
+import boto3
 
 # ========== CONFIG SECTION ==========
-# Change these values for your specific project
-APP_NAME = "FlaskXRayTemplate"
-LOG_LEVEL = logging.INFO
-CW_LOG_GROUP = "/flask/xray-demo"  # CloudWatch Log Group name
-ENABLE_X_RAY = True
-ENABLE_CW_LOGS = True
+# Values can be overridden by environment variables
+APP_NAME = os.environ.get('APP_NAME', "FlaskXRayTemplate")
+LOG_LEVEL = logging.getLevelName(os.environ.get('LOG_LEVEL', 'INFO'))
+CW_LOG_GROUP = os.environ.get('CW_LOG_GROUP', "/flask/xray-demo")
+ENABLE_X_RAY = os.environ.get('ENABLE_X_RAY', 'true').lower() == 'true'
+ENABLE_CW_LOGS = os.environ.get('ENABLE_CW_LOGS', 'true').lower() == 'true'
+STAGE = os.environ.get('STAGE', 'dev')
 # ===================================
 
 # Configure logging
@@ -30,6 +32,7 @@ class JsonFormatter(logging.Formatter):
             "level": record.levelname,
             "message": record.getMessage(),
             "app_name": APP_NAME,
+            "stage": STAGE,
         }
         
         # Add request_id if available
@@ -49,19 +52,40 @@ console_handler = logging.StreamHandler()
 console_handler.setFormatter(JsonFormatter())
 logger.addHandler(console_handler)
 
+# Add CloudWatch Logs handler if enabled
+if ENABLE_CW_LOGS:
+    try:
+        import watchtower
+        # Create log stream name with app name, stage and uuid
+        log_stream_name = f"{APP_NAME}-{STAGE}-{str(uuid.uuid4())[:8]}"
+        
+        # Initialize CloudWatch Logs handler
+        cw_handler = watchtower.CloudWatchLogHandler(
+            log_group=CW_LOG_GROUP,
+            stream_name=log_stream_name,
+            boto3_client=boto3.client('logs')
+        )
+        cw_handler.setFormatter(JsonFormatter())
+        logger.addHandler(cw_handler)
+        logger.info(f"CloudWatch Logs enabled with log group {CW_LOG_GROUP}, stream {log_stream_name}")
+    except Exception as e:
+        logger.warning(f"Failed to initialize CloudWatch Logs: {str(e)}")
 
 # Initialize Flask app
 app = Flask(__name__)
 
 # Configure X-Ray if enabled
 if ENABLE_X_RAY:
-    xray_recorder.configure(
-        service=APP_NAME,
-        context_missing='LOG_ERROR'
-    )
-    XRayMiddleware(app, xray_recorder)
-    patch_all()  # Patch all supported libraries for X-Ray
-    logger.info("AWS X-Ray integration enabled")
+    try:
+        xray_recorder.configure(
+            service=APP_NAME,
+            context_missing='LOG_ERROR'
+        )
+        XRayMiddleware(app, xray_recorder)
+        patch_all()  # Patch all supported libraries for X-Ray
+        logger.info("AWS X-Ray integration enabled")
+    except Exception as e:
+        logger.warning(f"Failed to initialize X-Ray: {str(e)}")
 
 # ========== MIDDLEWARE SECTION ==========
 
@@ -76,6 +100,15 @@ def before_request():
     
     # Record start time for duration calculation
     request.start_time = time.time()
+    
+    # Log incoming request
+    logger.info(f"Received request: {request.method} {request.path}",
+                extra={
+                    'request_id': request.request_id,
+                    'metadata_method': request.method,
+                    'metadata_path': request.path,
+                    'metadata_ip': request.remote_addr
+                })
 
 # Logging middleware
 @app.after_request
@@ -101,6 +134,17 @@ def after_request(response):
         }
     )
     return response
+
+# Error handling
+@app.errorhandler(Exception)
+def handle_exception(e):
+    logger.exception(f"Unhandled exception: {str(e)}",
+                     extra={'request_id': getattr(request, 'request_id', 'unknown')})
+    
+    return jsonify({
+        "error": str(e),
+        "request_id": getattr(request, "request_id", "unknown")
+    }), 500
 
 # ========== UTILITY FUNCTIONS ==========
 
@@ -182,81 +226,103 @@ def simulate_external_api_call(api_name, failure_rate=0.1):
 def add_annotation(key, value):
     """Add X-Ray annotation safely"""
     if ENABLE_X_RAY and xray_recorder.current_segment():
-        xray_recorder.current_segment().put_annotation(key, value)
+        try:
+            xray_recorder.current_segment().put_annotation(key, value)
+        except Exception as e:
+            logger.warning(f"Failed to add X-Ray annotation: {str(e)}")
 
 # Add X-Ray metadata if enabled
 def add_metadata(namespace, key, value):
     """Add X-Ray metadata safely"""
     if ENABLE_X_RAY and xray_recorder.current_segment():
-        xray_recorder.current_segment().put_metadata(key, value, namespace)
+        try:
+            xray_recorder.current_segment().put_metadata(key, value, namespace)
+        except Exception as e:
+            logger.warning(f"Failed to add X-Ray metadata: {str(e)}")
 
 # ========== ROUTE HANDLERS ==========
 
 # Root endpoint
 @app.route('/')
 def index():
-    logger.info("Processing root endpoint request", 
-                extra={'request_id': getattr(request, 'request_id', 'unknown')})
-    
-    return jsonify({
-        "service": APP_NAME,
-        "status": "healthy",
-        "version": "1.0.0",
-        "request_id": getattr(request, "request_id", "unknown")
-    })
+    try:
+        logger.info("Processing root endpoint request", 
+                    extra={'request_id': getattr(request, 'request_id', 'unknown')})
+        
+        return jsonify({
+            "service": APP_NAME,
+            "status": "healthy",
+            "version": "1.0.0",
+            "stage": STAGE,
+            "request_id": getattr(request, "request_id", "unknown")
+        })
+    except Exception as e:
+        logger.exception(f"Error in root endpoint: {str(e)}",
+                         extra={'request_id': getattr(request, 'request_id', 'unknown')})
+        raise
 
 # Example resource endpoint
 @app.route('/resources/<resource_id>')
 def get_resource(resource_id):
-    logger.info(f"Fetching resource data", 
-                extra={
-                    'request_id': getattr(request, 'request_id', 'unknown'),
-                    'metadata_resource_id': resource_id
-                })
-    
-    # Add X-Ray annotation
-    add_annotation('resource_id', resource_id)
-    
-    # Simulate database query
-    db_result = simulate_db_operation("get_resource")
-    
-    return jsonify({
-        "resource_id": resource_id,
-        "name": f"Resource {resource_id}",
-        "status": db_result["status"],
-        "request_id": getattr(request, "request_id", "unknown")
-    })
+    try:
+        logger.info(f"Fetching resource data", 
+                    extra={
+                        'request_id': getattr(request, 'request_id', 'unknown'),
+                        'metadata_resource_id': resource_id
+                    })
+        
+        # Add X-Ray annotation
+        add_annotation('resource_id', resource_id)
+        
+        # Simulate database query
+        db_result = simulate_db_operation("get_resource")
+        
+        return jsonify({
+            "resource_id": resource_id,
+            "name": f"Resource {resource_id}",
+            "status": db_result["status"],
+            "request_id": getattr(request, "request_id", "unknown")
+        })
+    except Exception as e:
+        logger.exception(f"Error fetching resource: {str(e)}",
+                         extra={'request_id': getattr(request, 'request_id', 'unknown')})
+        raise
 
 # Example nested resource endpoint with multiple operations
 @app.route('/resources/<resource_id>/items')
 def get_resource_items(resource_id):
-    logger.info(f"Fetching items for resource", 
-                extra={
-                    'request_id': getattr(request, 'request_id', 'unknown'),
-                    'metadata_resource_id': resource_id
-                })
-    
-    # Add X-Ray annotations and metadata
-    add_annotation('resource_id', resource_id)
-    add_metadata('request', 'query_params', dict(request.args))
-    
-    # Simulate multiple operations
-    db_result = simulate_db_operation("get_items")
-    api_result = simulate_external_api_call("validation_service")
-    
-    # Create sample response data
-    items = [
-        {"item_id": f"{resource_id}-1", "status": "active"},
-        {"item_id": f"{resource_id}-2", "status": "pending"}
-    ]
-    
-    return jsonify({
-        "resource_id": resource_id,
-        "items": items,
-        "db_status": db_result["status"],
-        "api_status": api_result["status"],
-        "request_id": getattr(request, "request_id", "unknown")
-    })
+    try:
+        logger.info(f"Fetching items for resource", 
+                    extra={
+                        'request_id': getattr(request, 'request_id', 'unknown'),
+                        'metadata_resource_id': resource_id
+                    })
+        
+        # Add X-Ray annotations and metadata
+        add_annotation('resource_id', resource_id)
+        add_metadata('request', 'query_params', dict(request.args))
+        
+        # Simulate multiple operations
+        db_result = simulate_db_operation("get_items")
+        api_result = simulate_external_api_call("validation_service")
+        
+        # Create sample response data
+        items = [
+            {"item_id": f"{resource_id}-1", "status": "active"},
+            {"item_id": f"{resource_id}-2", "status": "pending"}
+        ]
+        
+        return jsonify({
+            "resource_id": resource_id,
+            "items": items,
+            "db_status": db_result["status"],
+            "api_status": api_result["status"],
+            "request_id": getattr(request, "request_id", "unknown")
+        })
+    except Exception as e:
+        logger.exception(f"Error fetching resource items: {str(e)}",
+                         extra={'request_id': getattr(request, 'request_id', 'unknown')})
+        raise
 
 # Error endpoint to demonstrate error handling
 @app.route('/error')
